@@ -1,0 +1,10 @@
+fastapi
+uvicorn[standard]
+python-multipart
+PyPDF2
+openai==0.28.1
+python-dotenv
+reportlab
+requests
+beautifulsoup4
+lxml
