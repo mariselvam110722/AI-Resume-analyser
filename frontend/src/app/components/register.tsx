@@ -158,7 +158,7 @@ export const Register: React.FC = () => {
             <Button
               type="button"
               variant="outline"
-              className="w-full border-slate-700 text-slate-300 hover:bg-slate-800"
+              className="w-full bg-transparent border-slate-700 text-slate-300 hover:bg-slate-800 hover:text-white"
               onClick={() => navigate("/login")}
             >
               Already have an account? Login

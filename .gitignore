@@ -105,3 +105,5 @@ test-results/
 .ruff_cache/
 .dmypy.json
 dmypy.json
+
+.env.example

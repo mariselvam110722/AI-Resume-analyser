@@ -85,3 +85,37 @@ export const generateResume = async (data) => {
 
 export const getResumeDownloadUrl = (filename) =>
   `${BASE}/api/download-resume/${filename}`;
+
+// ── FEATURE 5: AI Recruiter Live Interview ───────────────
+
+export const startLiveInterview = async (username) => {
+  const res = await fetch(`${BASE}/api/live-interview/start`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ username }),
+  });
+  return await res.json();
+};
+
+export const evaluateLiveAnswer = async (username, question, answer) => {
+  const res = await fetch(`${BASE}/api/live-interview/evaluate`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ username, question, answer }),
+  });
+  return await res.json();
+};
+
+export const finishLiveInterview = async (username, scores) => {
+  const res = await fetch(`${BASE}/api/live-interview/finish`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ username, ...scores }),
+  });
+  return await res.json();
+};
+
+export const getLiveInterviewHistory = async (username) => {
+  const res = await fetch(`${BASE}/api/live-interview/history/${username}`);
+  return await res.json();
+};

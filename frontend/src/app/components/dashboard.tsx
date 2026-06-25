@@ -10,19 +10,34 @@ import {
 import jsPDF from "jspdf";
 
 export const Dashboard: React.FC = () => {
+  const { addResume, setLastAnalysis, lastAnalysis } = useAuth();
   const [analyzing, setAnalyzing] = useState(false);
-  const [analysis,  setAnalysis]  = useState<any>(null);
-  const { addResume } = useAuth();
+  const [analysis,  setAnalysis]  = useState<any>(lastAnalysis);
 
   const handleResult = (data: any) => {
     setAnalyzing(false);
     setAnalysis(data);
+    // Store full analysis in context (used by interview-prep and persistence)
+    setLastAnalysis(data);
     addResume({
       id:           Date.now().toString(),
       score:        data.score,
       dateAnalyzed: new Date().toISOString().split("T")[0],
       fileName:     data.file_name,
     });
+  };
+
+  const handleClear = async () => {
+    setAnalysis(null);
+    setLastAnalysis(null);
+    try {
+      const username = localStorage.getItem("username") || "guest";
+      await fetch(`http://localhost:8000/api/clear-resume?username=${username}`, {
+        method: "DELETE",
+      });
+    } catch (e) {
+      console.error("Failed to clear resume history", e);
+    }
   };
 
   // ─────────────────────────────────────────────────────────
@@ -37,24 +52,21 @@ export const Dashboard: React.FC = () => {
     const ML  = 18;
     const MR  = 18;
     const MB  = 20;
-    const TW  = PW - ML - MR;   // 174 mm usable width
-    const LH  = 6.2;             // body line-height
+    const TW  = PW - ML - MR;
+    const LH  = 6.2;
     let   y   = 18;
 
-    // ── CRITICAL: sanitize text — remove ALL non-ASCII chars ──
-    // These cause jsPDF to silently switch to Courier (monospace).
     const safe = (t: string) =>
       (t || "")
-        .replace(/[\u2018\u2019]/g, "'")   // smart quotes
-        .replace(/[\u201C\u201D]/g, '"')   // smart double quotes
-        .replace(/[\u2013\u2014]/g, "-")   // en/em dash
-        .replace(/[\u2026]/g, "...")        // ellipsis
-        .replace(/[\u00A0]/g, " ")          // non-breaking space
-        .replace(/[^\x00-\x7F]/g, "")     // strip any remaining non-ASCII
+        .replace(/[\u2018\u2019]/g, "'")
+        .replace(/[\u201C\u201D]/g, '"')
+        .replace(/[\u2013\u2014]/g, "-")
+        .replace(/[\u2026]/g, "...")
+        .replace(/[\u00A0]/g, " ")
+        .replace(/[^\x00-\x7F]/g, "")
         .replace(/\s+/g, " ")
         .trim();
 
-    // ── font reset — ALWAYS call before drawing text ──────────
     const F = (style: "bold" | "normal" | "italic" = "normal", size = 10.5) => {
       doc.setFont("helvetica", style);
       doc.setFontSize(size);
@@ -89,22 +101,19 @@ export const Dashboard: React.FC = () => {
       y += 3.5;
     };
 
-    // ── safe paragraph writer — always helvetica ───────────────
     const para = (text: string, size = 10.5, r = 40, g = 42, b = 54) => {
       F("normal", size);
       doc.setTextColor(r, g, b);
-      // splitTextToSize needs font already set — do it AFTER F()
       const lines: string[] = doc.splitTextToSize(safe(text), TW);
       lines.forEach((ln) => {
         checkPage(LH);
-        F("normal", size);           // re-assert font every line (safety)
+        F("normal", size);
         doc.setTextColor(r, g, b);
         doc.text(ln, ML, y);
         y += LH;
       });
     };
 
-    // ── section heading with colored bar ──────────────────────
     const heading = (label: string, r: number, g: number, b: number) => {
       checkPage(16);
       y += 7;
@@ -118,15 +127,13 @@ export const Dashboard: React.FC = () => {
       doc.setTextColor(40, 42, 54);
     };
 
-    // ── bullet writer — always helvetica, proper indent ───────
     const bullet = (text: string, r: number, g: number, b: number) => {
       F("normal", 10.5);
       doc.setTextColor(40, 42, 54);
-      // indent = 7mm from ML; wrap width = TW - 7
       const lines: string[] = doc.splitTextToSize(safe(text), TW - 7);
       lines.forEach((ln, i) => {
         checkPage(LH);
-        F("normal", 10.5);           // re-assert every line
+        F("normal", 10.5);
         doc.setTextColor(40, 42, 54);
         if (i === 0) {
           doc.setFillColor(r, g, b);
@@ -138,13 +145,9 @@ export const Dashboard: React.FC = () => {
       y += 0.8;
     };
 
-    // ═══════════════════════════════════════════════════════
-    // PAGE 1 — border + header band
-    // ═══════════════════════════════════════════════════════
     pageBorder();
     pageFooter();
 
-    // Header band
     doc.setFillColor(23, 37, 84);
     doc.rect(8, 8, PW - 16, 30, "F");
     doc.setFillColor(37, 99, 235);
@@ -164,7 +167,6 @@ export const Dashboard: React.FC = () => {
     doc.setTextColor(40, 42, 54);
     y = 48;
 
-    // ── Score card ────────────────────────────────────────────
     const score = analysis.score ?? 0;
     const [sr, sg, sb]: [number,number,number] =
       score >= 80 ? [22, 163, 74] : score >= 60 ? [180, 120, 0] : [200, 30, 30];
@@ -189,14 +191,12 @@ export const Dashboard: React.FC = () => {
     const scoreW = doc.getTextWidth(String(score));
     doc.text("/ 100", ML + 8 + scoreW, y + 19);
 
-    // Score label badge
     doc.setFillColor(sr, sg, sb);
     doc.roundedRect(PW - MR - 36, y + 6, 32, 11, 2, 2, "F");
     F("bold", 8.5);
     doc.setTextColor(255, 255, 255);
     doc.text(scoreLabel, PW - MR - 20, y + 13.5, { align: "center" });
 
-    // Progress bar (fixed width, no overflow)
     const bx = ML + 42;
     const bw = TW - 82;
     const by = y + 14;
@@ -210,7 +210,6 @@ export const Dashboard: React.FC = () => {
 
     y += 30;
 
-    // ── Sections ──────────────────────────────────────────────
     if (analysis.summary) {
       heading("Professional Summary", 23, 37, 84);
       para(analysis.summary, 10.5, 35, 38, 55);
@@ -218,7 +217,6 @@ export const Dashboard: React.FC = () => {
 
     if (analysis.skills?.length > 0) {
       heading("Skills", 37, 99, 235);
-      // Inline skill tags — safe text, correct font
       const tPad = 3.5;
       const tH   = 7.5;
       let   tx   = ML;
@@ -266,7 +264,6 @@ export const Dashboard: React.FC = () => {
       analysis.improvements.forEach((s: string) => bullet(s, 109, 40, 217));
     }
 
-    // ── Bottom disclaimer ─────────────────────────────────────
     checkPage(14);
     y += 6;
     doc.setFillColor(244, 246, 252);
@@ -340,13 +337,21 @@ export const Dashboard: React.FC = () => {
                     style={{ width: `${analysis.score}%` }}
                   />
                 </div>
-                <button
-                  onClick={downloadPDF}
-                  className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl transition font-medium text-sm"
-                >
-                  <Download className="w-4 h-4" />
-                  Download Professional Report PDF
-                </button>
+                <div className="flex flex-wrap gap-4">
+                  <button
+                    onClick={downloadPDF}
+                    className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl transition font-medium text-sm"
+                  >
+                    <Download className="w-4 h-4" />
+                    Download Professional Report PDF
+                  </button>
+                  <button
+                    onClick={handleClear}
+                    className="px-5 py-2.5 bg-slate-800 hover:bg-red-900/40 hover:text-red-400 hover:border-red-800 text-slate-300 rounded-xl transition font-medium text-sm border border-slate-700"
+                  >
+                    Clear Results
+                  </button>
+                </div>
               </CardContent>
             </Card>
 
